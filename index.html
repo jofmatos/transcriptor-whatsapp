@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b141a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Transcritor" />
+  <title>Transcritor de Áudio do WhatsApp</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="icon" type="image/png" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="logo" aria-hidden="true">🎙️</div>
+    <div class="titles">
+      <h1>Transcritor de Áudio</h1>
+      <p class="subtitle">WhatsApp → texto, direto no seu iPhone</p>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="card">
+      <label for="fileInput" class="dropzone" id="dropzone">
+        <div class="dz-icon">📂</div>
+        <div class="dz-text">
+          <strong>Escolher áudio</strong>
+          <span>.opus, .ogg, .m4a, .mp3, .wav</span>
+        </div>
+        <input id="fileInput" type="file" accept="audio/*,.opus,.ogg,.oga,.m4a,.mp3,.wav,.aac" hidden />
+      </label>
+
+      <div id="filePreview" class="file-preview hidden">
+        <div class="fp-row">
+          <span class="fp-name" id="fileName">—</span>
+          <span class="fp-size" id="fileSize"></span>
+        </div>
+        <audio id="audioPlayer" controls class="audio-player"></audio>
+      </div>
+
+      <div class="controls">
+        <label class="select-wrap">
+          <span>Modelo</span>
+          <select id="modelSelect">
+            <option value="Xenova/whisper-tiny">Rápido (tiny) — leve</option>
+            <option value="Xenova/whisper-base" selected>Equilibrado (base)</option>
+            <option value="Xenova/whisper-small">Melhor (small) — mais pesado</option>
+          </select>
+        </label>
+        <label class="select-wrap">
+          <span>Idioma</span>
+          <select id="langSelect">
+            <option value="portuguese" selected>Português</option>
+            <option value="english">Inglês</option>
+            <option value="spanish">Espanhol</option>
+            <option value="auto">Detectar automaticamente</option>
+          </select>
+        </label>
+      </div>
+
+      <button id="transcribeBtn" class="btn-primary" disabled>Transcrever</button>
+
+      <div id="status" class="status hidden">
+        <div class="spinner" id="spinner"></div>
+        <span id="statusText">Preparando…</span>
+      </div>
+      <div class="progress hidden" id="progressWrap">
+        <div class="progress-bar" id="progressBar"></div>
+      </div>
+    </section>
+
+    <section class="card result-card hidden" id="resultCard">
+      <div class="result-head">
+        <h2>Transcrição</h2>
+        <div class="result-actions">
+          <button id="copyBtn" class="btn-ghost" title="Copiar">📋 Copiar</button>
+          <button id="shareBtn" class="btn-ghost" title="Compartilhar">↗︎ Enviar</button>
+        </div>
+      </div>
+      <textarea id="resultText" class="result-text" readonly placeholder="O texto aparecerá aqui…"></textarea>
+    </section>
+
+    <details class="help">
+      <summary>Como mandar o áudio do WhatsApp?</summary>
+      <ol>
+        <li>No WhatsApp, segure o áudio → <strong>Encaminhar</strong> ou <strong>Compartilhar</strong>.</li>
+        <li>Escolha <strong>Salvar em Arquivos</strong> (no iPhone).</li>
+        <li>Volte aqui, toque em <strong>Escolher áudio</strong> e selecione o arquivo.</li>
+        <li>Toque em <strong>Transcrever</strong>. A primeira vez baixa o modelo (uma vez só).</li>
+      </ol>
+      <p class="note">Tudo roda dentro do seu iPhone — o áudio não é enviado para nenhum servidor.</p>
+    </details>
+  </main>
+
+  <footer class="footer">
+    <span>100% no dispositivo · sem servidor · privado</span>
+  </footer>
+
+  <script src="app.js" type="module"></script>
+</body>
+</html>
