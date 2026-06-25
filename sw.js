@@ -1,6 +1,6 @@
-// Service Worker — cache do "app shell" para abrir offline.
-// Não intercepta os downloads do modelo (CDN); o transformers.js usa o próprio cache.
-const CACHE = 'transcritor-shell-v2';
+// Service Worker — network-first para o "app shell" (sempre pega a versão nova),
+// com fallback ao cache quando offline. Não intercepta os downloads do modelo (CDN).
+const CACHE = 'transcritor-shell-v3';
 const SHELL = [
   './',
   './index.html',
@@ -28,18 +28,18 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
-  // Só trata mesmo-origem; deixa CDN (modelos) passar direto pela rede.
+  // Só trata mesmo-origem; CDN (modelos) passa direto pela rede.
   if (url.origin !== self.location.origin) return;
   if (event.request.method !== 'GET') return;
 
+  // Network-first: tenta a rede, atualiza o cache, e cai pro cache se offline.
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(event.request).then((resp) => {
+    fetch(event.request)
+      .then((resp) => {
         const copy = resp.clone();
         caches.open(CACHE).then((cache) => cache.put(event.request, copy)).catch(() => {});
         return resp;
-      }).catch(() => cached);
-    })
+      })
+      .catch(() => caches.match(event.request))
   );
 });
