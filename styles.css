@@ -120,6 +120,20 @@ select {
   font-size: 0.9rem;
 }
 
+.model-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 14px;
+}
+.model-status {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.model-status.ready { color: var(--accent-2); }
+.model-status.loading { color: var(--text); }
+.model-status.error { color: var(--danger); }
+
 .btn-primary {
   width: 100%;
   padding: 15px;

@@ -10,6 +10,8 @@ const audioPlayer = document.getElementById('audioPlayer');
 const transcribeBtn = document.getElementById('transcribeBtn');
 const modelSelect = document.getElementById('modelSelect');
 const langSelect = document.getElementById('langSelect');
+const preloadBtn = document.getElementById('preloadBtn');
+const modelStatus = document.getElementById('modelStatus');
 const statusEl = document.getElementById('status');
 const statusText = document.getElementById('statusText');
 const spinner = document.getElementById('spinner');
@@ -21,8 +23,11 @@ const copyBtn = document.getElementById('copyBtn');
 const shareBtn = document.getElementById('shareBtn');
 
 let selectedFile = null;
+let lastObjectUrl = null;
 let worker = null;
 let busy = false;
+let modelReady = false;     // modelo atual carregado em memória
+let preloading = false;
 
 const SAMPLE_RATE = 16000;
 
@@ -44,24 +49,32 @@ function setProgress(pct) {
   progressBar.style.width = Math.max(0, Math.min(100, pct)) + '%';
 }
 
+function setModelStatus(text, cls) {
+  modelStatus.textContent = text;
+  modelStatus.className = 'model-status' + (cls ? ' ' + cls : '');
+}
+
 function handleFile(file) {
   if (!file) return;
   selectedFile = file;
   fileName.textContent = file.name || 'áudio';
   fileSize.textContent = fmtSize(file.size);
   filePreview.classList.remove('hidden');
+  if (lastObjectUrl) { try { URL.revokeObjectURL(lastObjectUrl); } catch (_) {} }
   try {
-    audioPlayer.src = URL.createObjectURL(file);
+    lastObjectUrl = URL.createObjectURL(file);
+    audioPlayer.src = lastObjectUrl;
   } catch (_) {}
   transcribeBtn.disabled = false;
   resultCard.classList.add('hidden');
   hideStatus();
   setProgress(null);
+  // Aquece o modelo em segundo plano para já estar pronto na hora de transcrever.
+  preloadModel();
 }
 
 fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
 
-// Drag & drop (desktop)
 ['dragenter', 'dragover'].forEach(ev =>
   dropzone.addEventListener(ev, (e) => { e.preventDefault(); dropzone.classList.add('dragover'); }));
 ['dragleave', 'drop'].forEach(ev =>
@@ -71,7 +84,13 @@ dropzone.addEventListener('drop', (e) => {
   if (f) handleFile(f);
 });
 
-// Decodifica qualquer formato suportado pelo navegador para Float32 mono 16 kHz
+// Trocar de modelo invalida o que estava carregado.
+modelSelect.addEventListener('change', () => {
+  modelReady = false;
+  setModelStatus('Modelo ainda não baixado');
+});
+
+// Decodifica para Float32 mono 16 kHz
 async function decodeToMono16k(file) {
   const arrayBuffer = await file.arrayBuffer();
   const AC = window.AudioContext || window.webkitAudioContext;
@@ -83,7 +102,6 @@ async function decodeToMono16k(file) {
     tmpCtx.close();
   }
 
-  // Mixdown para mono
   const numCh = audioBuffer.numberOfChannels;
   const length = audioBuffer.length;
   const mono = new Float32Array(length);
@@ -92,7 +110,6 @@ async function decodeToMono16k(file) {
     for (let i = 0; i < length; i++) mono[i] += data[i] / numCh;
   }
 
-  // Resample para 16 kHz via OfflineAudioContext
   if (audioBuffer.sampleRate === SAMPLE_RATE) return mono;
 
   const targetLen = Math.round(length * SAMPLE_RATE / audioBuffer.sampleRate);
@@ -118,26 +135,43 @@ function getWorker() {
   return worker;
 }
 
+// Pré-carrega (baixa + inicializa) o modelo selecionado, se ainda não estiver pronto.
+function preloadModel() {
+  if (modelReady || preloading) return;
+  preloading = true;
+  setModelStatus('Baixando modelo… (só na 1ª vez)', 'loading');
+  getWorker().postMessage({ type: 'preload', model: modelSelect.value });
+}
+
+preloadBtn.addEventListener('click', () => {
+  if (modelReady) { setModelStatus('Modelo pronto ✓ (em cache)', 'ready'); return; }
+  preloadModel();
+});
+
 function onWorkerMessage(e) {
   const msg = e.data;
   switch (msg.type) {
     case 'loading':
-      setStatus(msg.text || 'Carregando modelo…');
+      if (!busy) setModelStatus('Carregando modelo…', 'loading');
+      else setStatus(msg.text || 'Carregando modelo…');
       break;
     case 'download':
-      // progresso de download do modelo (0..100)
       if (typeof msg.progress === 'number') {
-        setProgress(msg.progress);
-        setStatus(`Baixando modelo… ${Math.round(msg.progress)}%`);
+        const pct = Math.round(msg.progress);
+        if (busy) { setProgress(msg.progress); setStatus(`Baixando modelo… ${pct}%`); }
+        else setModelStatus(`Baixando modelo… ${pct}%`, 'loading');
       }
       break;
+    case 'preloaded':
+      preloading = false;
+      modelReady = true;
+      setModelStatus('Modelo pronto ✓ (em cache)', 'ready');
+      break;
     case 'ready':
+      modelReady = true;
+      setModelStatus('Modelo pronto ✓ (em cache)', 'ready');
       setStatus('Transcrevendo o áudio…');
       setProgress(null);
-      break;
-    case 'partial':
-      resultCard.classList.remove('hidden');
-      resultText.value = msg.text || '';
       break;
     case 'done':
       resultCard.classList.remove('hidden');
@@ -155,7 +189,9 @@ function onWorkerMessage(e) {
 }
 
 function finishWithError(text) {
+  preloading = false;
   setStatus('⚠️ ' + text, false);
+  setModelStatus('Algo deu errado — tente o modelo "Rápido (tiny)"', 'error');
   setProgress(null);
   busy = false;
   transcribeBtn.disabled = false;
@@ -188,7 +224,6 @@ transcribeBtn.addEventListener('click', async () => {
   }
 });
 
-// Copiar
 copyBtn.addEventListener('click', async () => {
   const text = resultText.value;
   if (!text) return;
@@ -202,7 +237,6 @@ copyBtn.addEventListener('click', async () => {
   }
 });
 
-// Compartilhar (Web Share API — disponível no iOS)
 shareBtn.addEventListener('click', async () => {
   const text = resultText.value;
   if (!text) return;
@@ -215,7 +249,6 @@ shareBtn.addEventListener('click', async () => {
   }
 });
 
-// Service worker (PWA / offline)
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('sw.js').catch(() => {});

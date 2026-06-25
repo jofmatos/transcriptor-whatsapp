@@ -1,6 +1,6 @@
 // Service Worker — cache do "app shell" para abrir offline.
 // Não intercepta os downloads do modelo (CDN); o transformers.js usa o próprio cache.
-const CACHE = 'transcritor-shell-v1';
+const CACHE = 'transcritor-shell-v2';
 const SHELL = [
   './',
   './index.html',
